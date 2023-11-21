@@ -20,7 +20,7 @@ import numpy as np
 from .catalog import PathManager, LABEL_MAP_CATALOG, MODEL_CATALOG
 from ..base_layoutmodel import BaseLayoutModel
 from ...elements import Rectangle, TextBlock, Layout
-
+from ..utils import filter_text_blocks
 from ...file_utils import is_effdet_available, is_torch_cuda_available
 
 if is_effdet_available():
@@ -114,8 +114,6 @@ class EfficientDetLayoutModel(BaseLayoutModel):
     DETECTOR_NAME = "efficientdet"
     MODEL_CATALOG = MODEL_CATALOG
 
-    DEFAULT_OUTPUT_CONFIDENCE_THRESHOLD = 0.25
-
     def __init__(
         self,
         config_path: str,
@@ -138,7 +136,7 @@ class EfficientDetLayoutModel(BaseLayoutModel):
         self._initialize_model(config_path, model_path, label_map, extra_config)
 
         self.output_confidence_threshold = extra_config.get(
-            "output_confidence_threshold", self.DEFAULT_OUTPUT_CONFIDENCE_THRESHOLD
+            "output_confidence_threshold", 0.5
         )
 
         self.preprocessor = InputTransform(self.config.image_size)
@@ -241,8 +239,8 @@ class EfficientDetLayoutModel(BaseLayoutModel):
                         type=self.label_map.get(pred_cat, pred_cat),
                     )
                 )
-
-        return box_predictions
+        filtered_layout = filter_text_blocks(box_predictions)
+        return filtered_layout
 
     def image_loader(self, image: Union["np.ndarray", "Image.Image"]):
         

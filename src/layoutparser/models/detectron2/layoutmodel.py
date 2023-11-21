@@ -21,6 +21,7 @@ from .catalog import MODEL_CATALOG, PathManager, LABEL_MAP_CATALOG
 from ..base_layoutmodel import BaseLayoutModel
 from ...elements import Rectangle, TextBlock, Layout
 from ...file_utils import is_torch_cuda_available, is_detectron2_available
+from ..utils import filter_text_blocks
 
 if is_detectron2_available():
     import detectron2.engine
@@ -48,7 +49,7 @@ class Detectron2LayoutModel(BaseLayoutModel):
         device(:obj:`str`, optional):
             Whether to use cuda or cpu devices. If not set, LayoutParser will
             automatically determine the device to initialize the models on.
-        extra_config (:obj:`list`, optional):
+        extra_config (:obj:`dict`, optional):
             Extra configuration passed to the Detectron2 model
             configuration. The argument will be used in the `merge_from_list
             <https://detectron2.readthedocs.io/modules/config.html
@@ -83,7 +84,7 @@ class Detectron2LayoutModel(BaseLayoutModel):
             )
 
         if extra_config is None:
-            extra_config = []
+            extra_config = {}
 
         config_path, model_path = self.config_parser(
             config_path, model_path, allow_empty_path=True
@@ -99,7 +100,6 @@ class Detectron2LayoutModel(BaseLayoutModel):
 
         cfg = detectron2.config.get_cfg()
         cfg.merge_from_file(config_path)
-        cfg.merge_from_list(extra_config)
 
         if model_path is not None:
             model_path = PathManager.get_local_path(model_path)
@@ -117,6 +117,9 @@ class Detectron2LayoutModel(BaseLayoutModel):
 
         self.label_map = label_map
         self._create_model()
+        self.output_confidence_threshold = extra_config.get(
+            "output_confidence_threshold", 0.5
+        )
 
     def _create_model(self):
         self.model = detectron2.engine.DefaultPredictor(self.cfg)
@@ -131,6 +134,11 @@ class Detectron2LayoutModel(BaseLayoutModel):
         labels = instance_pred.pred_classes.tolist()
 
         for score, box, label in zip(scores, boxes, labels):
+            if (
+                    score < self.output_confidence_threshold
+                ):  # stop when below this threshold, scores in descending order
+                    continue
+
             x_1, y_1, x_2, y_2 = box
 
 
@@ -140,8 +148,8 @@ class Detectron2LayoutModel(BaseLayoutModel):
                 Rectangle(x_1, y_1, x_2, y_2), type=label, score=score
             )
             layout.append(cur_block)
-
-        return layout
+        filtered_layout = filter_text_blocks(layout)
+        return filtered_layout
 
     def detect(self, image):
         """Detect the layout of a given image.

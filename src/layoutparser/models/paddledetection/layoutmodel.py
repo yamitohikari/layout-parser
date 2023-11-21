@@ -25,6 +25,7 @@ import numpy as np
 from .catalog import PathManager, LABEL_MAP_CATALOG, MODEL_CATALOG
 from ..base_layoutmodel import BaseLayoutModel
 from ...elements import Rectangle, TextBlock, Layout
+from ..utils import filter_text_blocks
 
 from ...file_utils import is_paddle_available
 
@@ -145,7 +146,7 @@ class PaddleDetectionLayoutModel(BaseLayoutModel):
             thread_num=extra_config.get("thread_num", 10),
         )
 
-        self.threshold = extra_config.get("threshold", 0.5)
+        self.output_confidence_threshold = extra_config.get("output_confidence_threshold", 0.5)
         self.target_size = extra_config.get("target_size", [640, 640])
         self.pixel_mean = extra_config.get(
             "pixel_mean", np.array([[[0.485, 0.456, 0.406]]])
@@ -242,7 +243,7 @@ class PaddleDetectionLayoutModel(BaseLayoutModel):
             results["boxes"] = np_boxes
 
         np_boxes = results["boxes"]
-        expect_boxes = (np_boxes[:, 1] > self.threshold) & (np_boxes[:, 0] > -1)
+        expect_boxes = (np_boxes[:, 1] > self.output_confidence_threshold) & (np_boxes[:, 0] > -1)
         np_boxes = np_boxes[expect_boxes, :]
 
         for np_box in np_boxes:
@@ -255,8 +256,8 @@ class PaddleDetectionLayoutModel(BaseLayoutModel):
                 score=score,
             )
             layout.append(cur_block)
-
-        return layout
+        filtered_layout = filter_text_blocks(layout)
+        return filtered_layout
 
     def detect(self, image):
         """Detect the layout of a given image.
