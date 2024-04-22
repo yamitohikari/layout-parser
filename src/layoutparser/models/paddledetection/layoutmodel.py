@@ -126,7 +126,7 @@ class PaddleDetectionLayoutModel(BaseLayoutModel):
         if extra_config is None:
             extra_config = {}
 
-        _, model_path = self.config_parser(config_path, model_path)
+        # _, model_path = self.config_parser(config_path, model_path)
         model_dir = PathManager.get_local_path(model_path)
 
         if label_map is None:
